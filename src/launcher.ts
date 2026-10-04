@@ -28,6 +28,7 @@ import { providerMigrationNeeded } from "./runtime-config-bridge.ts";
 import {
   classifyZaiOAuthInvocation,
   runZaiOAuthLogin,
+  usesNativeZaiOAuth,
   type OfficialLoginPayload
 } from "./zai-oauth.ts";
 import { requestAppServer } from "./app-server-client.ts";
@@ -283,6 +284,7 @@ function runtimeEnvironment(extra: NodeJS.ProcessEnv = {}): Record<string, strin
   delete env.ZCODE_CLI_OAUTH_CALLBACK_STDIN;
   delete env.ZCODE_CLI_MIGRATE_CONFIG;
   const distributionVersion = readDistributionVersion();
+  const appVersion = readJsonVersion(extractionMetadataPath, "appVersion");
   const inherited: NodeJS.ProcessEnv = {
     ...env,
     ...extra
@@ -294,6 +296,7 @@ function runtimeEnvironment(extra: NodeJS.ProcessEnv = {}): Record<string, strin
     ZCODE_MODEL_RETRY_MAX_RETRIES: resolveModelRetryMaxRetries(inherited),
     ZCODE_APP_CLI_EXECUTABLE: process.execPath,
     ZCODE_APP_CLI_ENTRY: launcherPath,
+    ...(appVersion ? { ZCODE_APP_VERSION: inherited.ZCODE_APP_VERSION?.trim() || appVersion } : {}),
     ...(distributionVersion ? { ZCODE_APP_CLI_VERSION: distributionVersion } : {})
   };
   return Object.fromEntries(
@@ -548,6 +551,13 @@ export async function main(args: string[]): Promise<number> {
   }
 
   if (zaiOAuth) {
+    if (usesNativeZaiOAuth()) {
+      // The runtime uses ZCode's registered HTTPS callback and polls for the
+      // result. Only macOS needs the custom-protocol Desktop bridge below.
+      const code = await runRuntime(node, zaiOAuth.runtimeArgs);
+      if (code === 0 && await readConfiguredModelAccess()) await clearSetupPending();
+      return code;
+    }
     const abortController = new AbortController();
     const cancel = (signal: NodeJS.Signals) => () => abortController.abort(signal);
     const onSigint = cancel("SIGINT");
