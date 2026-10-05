@@ -3988,6 +3988,7 @@ class ZCodeTui {
         : `Current model: ${this.model}. · session only — saved defaults are unchanged`,
       help: "Up/Down choose · Enter switch · Esc cancel",
       items: picker.items.map((item) => ({ ...item, payload: item.value })),
+      filterMode: "substring",
       selectedIndex: picker.selectedIndex
     });
     const modelId = selected?.payload;
@@ -4047,6 +4048,7 @@ class ZCodeTui {
         prompt: "Select the model used for new sessions.",
         help: "Up/Down choose · Enter save · Esc back to settings",
         items: picker.items,
+        filterMode: "substring",
         selectedIndex: picker.selectedIndex
       });
       if (!choice) return;

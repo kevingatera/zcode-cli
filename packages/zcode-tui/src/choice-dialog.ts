@@ -194,12 +194,13 @@ class ChoiceDialog implements Component {
     private readonly title: string,
     private readonly prompt: string,
     private readonly help: string,
-    private readonly list: SelectList,
+    private list: SelectList,
     private readonly theme: ZCodeTheme,
     private readonly content?: Component,
     private readonly contentLabel = "Details",
     private readonly maxContentLines = 0,
-    private readonly maxExpandedContentLines = 0
+    private readonly maxExpandedContentLines = 0,
+    private readonly filterList?: (filter: string) => SelectList
   ) {}
 
   setSelectionPreview(preview: Component | undefined): void {
@@ -352,7 +353,15 @@ class ChoiceDialog implements Component {
 
   private updateFilter(filter: string): void {
     this.filter = filter;
-    this.list.setFilter(filter);
+    if (this.filterList) {
+      const next = this.filterList(filter);
+      next.onSelect = this.list.onSelect;
+      next.onCancel = this.list.onCancel;
+      next.onSelectionChange = this.list.onSelectionChange;
+      this.list = next;
+    } else {
+      this.list.setFilter(filter);
+    }
     const selected = this.list.getSelectedItem();
     if (selected) this.list.onSelectionChange?.(selected);
     else this.setSelectionPreview(undefined);
@@ -426,6 +435,7 @@ export function choose(
     showSelectedItemDetails?: boolean;
     /** Enable 1-9 label hints and quick-select. Only lists with at most 9 items support it. */
     numberShortcuts?: boolean;
+    filterMode?: "prefix" | "substring";
   }
 ): Promise<ChoiceItem | null> {
   if (options.items.length === 0) return Promise.resolve(null);
@@ -490,7 +500,15 @@ export function choose(
       options.content,
       sanitizeTerminalText(options.contentLabel ?? "Details", { preserveSgr: false }),
       maxContentLines,
-      maxExpandedContentLines
+      maxExpandedContentLines,
+      options.filterMode === "substring" ? (filter) => {
+        const query = filter.toLowerCase();
+        const matches = searchableItems.filter((item) => (
+          item.label.toLowerCase().includes(query)
+          || item.description?.toLowerCase().includes(query)
+        ));
+        return new SelectList(matches, maxVisible, theme.select);
+      } : undefined
     );
     dialog.numberShortcutCount = numberShortcutsEnabled ? options.items.length : 0;
     const previewFor = (item: SelectItem | null): Component | undefined => {

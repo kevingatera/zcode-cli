@@ -9,8 +9,11 @@ export const modelResumeScenario: TuiScenario = {
   fixture: join(import.meta.dir, "..", "..", "fixtures", "tui-model-resume.ts"),
   async run(session, workspace) {
     await session.waitForScreen("initial default model", /◈ scenario\/glm-5\.3(?!-flash)/iu);
+    await session.sendAndWait("/model\r", "open model picker", /Select model/iu);
+    await session.sendAndWait("GLM", "filter by model name", /Filter: GLM/u);
+    await session.waitForScreen("matching provider-qualified model", /scenario\/glm-5\.3-flash/iu);
     await session.sendAndWait(
-      "/model scenario/glm-5.3-flash\r",
+      "\x1b[B\r",
       "switch to flash model",
       /Session model now: scenario\/glm-5\.3-flash/iu
     );

@@ -11,6 +11,44 @@ import { choose, promptText } from "../packages/zcode-tui/src/choice-dialog.ts";
 import { createTheme } from "../packages/zcode-tui/src/theme.ts";
 
 describe("TUI choice dialog", () => {
+  test("finds model names and aliases inside provider-qualified IDs", async () => {
+    const host = new Container();
+    let focused: Component | null = null;
+    const ui = {
+      terminal: { rows: 24 }, requestRender() {},
+      setFocus(component: Component | null) { focused = component; }
+    } as unknown as TUI;
+    const pending = choose(ui, host, createTheme(false), {
+      title: "Select model", prompt: "Choose a model", filterMode: "substring",
+      items: [
+        { value: "account:zai-individual-coding-plan/GLM-5.3", label: "account:zai-individual-coding-plan/GLM-5.3" },
+        { value: "opencode-go/glm-5.3", label: "opencode-go/glm-5.3", description: "Fast coding alias", payload: "original-model" },
+        { value: "command-code/kimi-k3", label: "command-code/kimi-k3" }
+      ]
+    });
+    const input = (text: string) => focused?.handleInput?.(text);
+    const output = () => host.render(140).join("\n");
+    for (const query of ["glm", "GLM"]) {
+      input(query);
+      expect(output()).toContain("account:zai-individual-coding-plan/GLM-5.3");
+      expect(output()).toContain("opencode-go/glm-5.3");
+      expect(output()).not.toContain("command-code/kimi-k3");
+      input("\x15");
+    }
+    input("coding alias");
+    expect(output()).toContain("opencode-go/glm-5.3");
+    expect(output()).not.toContain("account:zai-individual-coding-plan/GLM-5.3");
+    input("\x15");
+    input("no-such-model");
+    expect(output()).not.toContain("opencode-go/glm-5.3");
+    input("\x15");
+    expect(output()).toContain("command-code/kimi-k3");
+    input("glm");
+    input("\x1b[B");
+    input("\r");
+    expect(await pending).toMatchObject({ value: "opencode-go/glm-5.3", payload: "original-model" });
+  });
+
   test("renders fullscreen dialogs as isolated bottom panes", async () => {
     const host = new Container();
     const focusState: { current: Component | null } = { current: null };
