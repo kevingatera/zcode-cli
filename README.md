@@ -460,6 +460,16 @@ not available on `PATH`.
 
 ## Configuration
 
+Select a model for one headless prompt without changing the saved default:
+
+```bash
+zcode --model account:zai-individual-coding-plan/GLM-5.3-Flash --prompt 'Reply with exactly: ok'
+```
+
+`--model` requires a full provider/model ID and `--prompt` (or `-p`). It also
+overrides a resumed session's model for that run. Unknown or unavailable models
+fail before a prompt is sent, rather than falling back to the default.
+
 ZCode reads MCP servers, hooks, plugins, permissions, network, storage and display
 settings from `~/.zcode/cli/setting.json` (or
 `%USERPROFILE%\.zcode\cli\setting.json` on Windows). Project settings use

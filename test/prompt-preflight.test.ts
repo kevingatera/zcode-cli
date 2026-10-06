@@ -81,6 +81,12 @@ describe("prompt credential preflight (offline)", () => {
     }
   });
 
+  test("checks an explicit prompt model instead of the saved default", async () => {
+    const f = await fixture();
+    expect(await promptPreflight(["--cwd", f.home, "-p", "hello"], f.env,
+      "account:zai-individual-coding-plan/GLM-5.3-Flash")).toBeUndefined();
+  });
+
   test("covers headless prompt forms while preserving help, login and resume", async () => {
     const f = await fixture();
     for (const args of [["--prompt", "hello"], ["--prompt=hello"], ["--print", "hello"], ["-p", "hello"], ["--target", "hello"]]) {

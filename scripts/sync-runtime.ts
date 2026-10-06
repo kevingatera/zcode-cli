@@ -1377,6 +1377,15 @@ export function patchRuntimeStreamEofFinishGuard(runtime: string): string {
   return patched;
 }
 
+export function patchRuntimePromptModel(runtime: string): string {
+  if (runtime.includes("ZCODE_CLI_PROMPT_MODEL")) return runtime;
+  const anchor = /if\([A-Za-z_$][\w$]*=([A-Za-z_$][\w$]*)\.traceId,[A-Za-z_$][\w$]*\.memoryBench/u.exec(runtime);
+  if (!anchor) throw new Error("ZCode runtime is incompatible with the prompt model patch.");
+  return runtime.slice(0, anchor.index)
+    + `if(process.env.ZCODE_CLI_PROMPT_MODEL)await ${anchor[1]}.setModel(process.env.ZCODE_CLI_PROMPT_MODEL,{transient:true});`
+    + runtime.slice(anchor.index);
+}
+
 export function patchRuntimeCliCredentials(runtime: string): string {
   const marker = 'ZCODE_CLI_CREDENTIALS_FILE';
   if (runtime.includes(marker)) return runtime;
@@ -1662,6 +1671,12 @@ export const runtimePatchPlan: readonly RuntimePatchDefinition[] = [
     requirement: "required",
     apply: patchRuntimeCliCredentials,
     verify: (runtime) => runtime.includes("ZCODE_CLI_CREDENTIALS_FILE")
+  },
+  {
+    id: "prompt-model",
+    requirement: "required",
+    apply: patchRuntimePromptModel,
+    verify: (runtime) => runtime.includes("ZCODE_CLI_PROMPT_MODEL")
   },
   {
     id: "desktop-oauth",

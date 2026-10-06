@@ -34,6 +34,7 @@ import {
 import { requestAppServer } from "./app-server-client.ts";
 import { runPluginCommand } from "./plugin-cli.ts";
 import { missingCodingPlanKey } from "./prompt-preflight.ts";
+import { extractPromptModel } from "./prompt-model.ts";
 import {
   capabilitiesFromExtractionMetadata,
   type RuntimeCliOptionType
@@ -240,13 +241,13 @@ function inspectRuntimeInvocation(
 }
 
 export async function promptPreflight(
-  args: string[], env: NodeJS.ProcessEnv = process.env
+  args: string[], env: NodeJS.ProcessEnv = process.env, model?: string
 ): Promise<string | undefined> {
   const invocation = inspectRuntimeInvocation(args, readRuntimeCliOptionTypes());
   if (!invocation.agentInvocation || invocation.invalid || invocation.passthrough || invocation.resume) {
     return undefined;
   }
-  return missingCodingPlanKey({ env, workingDirectory: invocation.workingDirectory });
+  return missingCodingPlanKey({ env, workingDirectory: invocation.workingDirectory, model });
 }
 
 export function withDefaultBrowserUse(
@@ -288,6 +289,7 @@ function runtimeEnvironment(extra: NodeJS.ProcessEnv = {}, inspectConfiguration 
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env.ZCODE_CLI_OAUTH_CALLBACK_STDIN;
   delete env.ZCODE_CLI_MIGRATE_CONFIG;
+  delete env.ZCODE_CLI_PROMPT_MODEL;
   const distributionVersion = readDistributionVersion();
   const appVersion = readJsonVersion(extractionMetadataPath, "appVersion");
   const inherited: NodeJS.ProcessEnv = {
@@ -476,6 +478,16 @@ export async function main(args: string[]): Promise<number> {
     return 0;
   }
 
+  let promptModel: string | undefined;
+  try {
+    const parsed = extractPromptModel(args, readRuntimeCliOptionTypes());
+    args = parsed.args;
+    promptModel = parsed.model;
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+    return 1;
+  }
+
   let setupPending = false;
   try {
     // doctor 必须能检查损坏的配置，不能先被普通启动校验或 provider 迁移拦住。
@@ -601,13 +613,20 @@ export async function main(args: string[]): Promise<number> {
   }
 
   try {
-    const diagnostic = await readConfiguredModelAccess() ? undefined : await promptPreflight(login.args);
+    const diagnostic = await readConfiguredModelAccess() ? undefined : await promptPreflight(login.args, process.env, promptModel);
     if (diagnostic) {
       console.error(diagnostic);
       return 1;
     }
     const runtimeArgs = withDefaultBrowserUse(login.args);
-    return await runRuntime(node, runtimeArgs, firstRunSetupEnv(setupPending, runtimeArgs));
+    const code = await runRuntime(node, runtimeArgs, {
+      ...firstRunSetupEnv(setupPending, runtimeArgs),
+      ...(promptModel ? { ZCODE_CLI_PROMPT_MODEL: promptModel } : {})
+    });
+    if (code === 0 && (args.includes("--help") || args.includes("-h"))) {
+      console.log("\n  --model <provider/model>  Select a model for this --prompt run without changing the saved default.");
+    }
+    return code;
   } catch (error) {
     console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
